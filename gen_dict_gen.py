@@ -62,6 +62,12 @@ def parse_args():
 
     return args
 
+def parse_datastream(datastream):
+    site = datastream[:3]
+    instrument = datastream[3:-2]
+    facility = datastream[-2:]
+    return site, instrument, facility
+
 def main():
     args = parse_args()
     # try and get arguments from path
@@ -69,21 +75,19 @@ def main():
     dqr = dqr_regex.search(cwd).group()
     datastream = datastream_regex.search(cwd).group()
 
-    # ask if arguments are correct?
-    question = "DQR # = {}\nRaw datastream = {}\nIs this correct? ".format(dqr, datastream)
-    if input(question) in ['y', 'yes', 'yea', 'ok']:
-        site = datastream[:3]
-        instrument = datastream[3:-2]
-        facility = datastream[-2:]
-        print(site, instrument, facility)
-        print("\tProceding with test.")
-    # else ask for arguments
-    else:
-        dqr = input("Enter the DQR #:\nExample D180042.4: ")
-        datastream = input("Enter the datastream:\nExample sgp30ebbrC1.00: ")
-        site = datastream[:3]
-        instrument = datastream[3:-2]
-        facility = datastream[-2:]
+    if args.interactive:
+        # ask if arguments are correct?
+        question = "DQR # = {}\nRaw datastream = {}\nIs this correct? ".format(dqr, datastream)
+        if input(question) in ['y', 'yes', 'yea', 'ok']:
+            pass
+        # else ask for arguments
+        else:
+            dqr = input("Enter the DQR #:\nExample D180042.4: ")
+            datastream = input("Enter the datastream:\nExample sgp30ebbrC1.00: ")
+
+    site, instrument, facility = parse_datastream(datastream)
+    print(site, instrument, facility)
+    print("\tProceding with test.")
 
     # source environment variables
     reproc_home = os.getenv("REPROC_HOME") # expected to be the current reproc environment
