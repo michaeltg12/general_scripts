@@ -68,35 +68,19 @@ def parse_datastream(datastream):
     facility = datastream[-2:]
     return site, instrument, facility
 
-def main():
-    args = parse_args()
-    # try and get arguments from path
-    cwd = os.getcwd()
-    dqr = dqr_regex.search(cwd).group()
-    datastream = datastream_regex.search(cwd).group()
+def reproc_env():
+    reproc_home = os.getenv("REPROC_HOME")  # expected to be the current reproc environment
+    post_processing = os.getenv("POST_PROC")  # is a post processing folder under reproc home
+    data_home = f"{reproc_home}/{dqr}"  # used to set environment variables for current dqr job
+    return reproc_home, post_processing, data_home
 
-    if args.interactive:
-        # ask if arguments are correct?
-        question = "DQR # = {}\nRaw datastream = {}\nIs this correct? ".format(dqr, datastream)
-        if input(question) in ['y', 'yes', 'yea', 'ok']:
-            pass
-        # else ask for arguments
-        else:
-            dqr = input("Enter the DQR #:\nExample D180042.4: ")
-            datastream = input("Enter the datastream:\nExample sgp30ebbrC1.00: ")
-
-    site, instrument, facility = parse_datastream(datastream)
-    print(site, instrument, facility)
-    print("\tProceding with test.")
-
-    # source environment variables
-    reproc_home = os.getenv("REPROC_HOME") # expected to be the current reproc environment
-    post_processing = os.getenv("POST_PROC") # is a post processing folder under reproc home
-    data_home = f"{reproc_home}/{dqr}" # used to set environment variables for current dqr job 
+def setup_environment(dqr):
+    # get reprocessing environment variables
+    reproc_home, post_processing, data_home = reproc_env()
 
     # try sourcing by apm created environment file in case it has more than the default
     env_file = os.path.join(reproc_home, dqr, 'env.bash')
-    if os.path.isfile(env_file) and False: #TODO HACK!! Error with this env source system
+    if os.path.isfile(env_file) and False:  # TODO HACK!! Error with this env source system
         with open(env_file, 'r') as open_env_file:
             print("\nAttempting to source from local env.bash file...")
             lines = open_env_file.readlines()
@@ -107,40 +91,40 @@ def main():
                 os.environ[key] = value
     else:
         # set environment variables based on this default
-        env_vars = {"DATA_HOME" : data_home,
-        "DATASTREAM_DATA" : f"{data_home}/datastream",
-        "ARCHIVE_DATA" : "/data/archive",
-        "OUT_DATA" : f"{data_home}/out",
-        "TMP_DATA" : f"{data_home}/tmp",
-        "HEALTH_DATA" : f"{data_home}/health",
-        "QUICKLOOK_DATA" : f"{data_home}/quicklooks",
-        "COLLECTION_DATA" : f"{data_home}/collection",
-        "CONF_DATA" : f"{data_home}/conf",
-        "LOGS_DATA" : f"{data_home}/logs",
-        "WWW_DATA" : f"{data_home}/www",
-        "DB_DATA" : f"{data_home}/db"}
+        env_vars = {"DATA_HOME": data_home,
+                    "DATASTREAM_DATA": f"{data_home}/datastream",
+                    "ARCHIVE_DATA": "/data/archive",
+                    "OUT_DATA": f"{data_home}/out",
+                    "TMP_DATA": f"{data_home}/tmp",
+                    "HEALTH_DATA": f"{data_home}/health",
+                    "QUICKLOOK_DATA": f"{data_home}/quicklooks",
+                    "COLLECTION_DATA": f"{data_home}/collection",
+                    "CONF_DATA": f"{data_home}/conf",
+                    "LOGS_DATA": f"{data_home}/logs",
+                    "WWW_DATA": f"{data_home}/www",
+                    "DB_DATA": f"{data_home}/db"}
 
-        #print("\nEnvironment file does not exist at:\n\t{}".format(env_file))
+        # print("\nEnvironment file does not exist at:\n\t{}".format(env_file))
         print("\nSourcing from default dict:")
         for key, value in env_vars.items():
             print("\t{}={}".format(key, value))
             os.environ[key] = value
 
-    # get files for modification
-    file_search = os.path.join(args.input, '*')
-    files = glob(file_search)
-    # get date from files to look for ingest command and for cdf comparison later
+def get_files(search_arg):
+    return glob(search_arg)
+
+def get_ingest_search_date(files):
     for f in files:
         result_date = date_regex.search(f.split('/')[-1])
         if result_date:
             result_date = result_date.group()
-            break
+            return result_date
     else:
         print("No result date found. Exiting")
         exit(1)
 
-    # get ingest command
-    ingest_search = os.path.join("/data/archive/", site, datastream[:-3]+"*")
+def get_ingest_command(site, datastream, result_date):
+    ingest_search = os.path.join("/data/archive/", site, datastream[:-3] + "*")
     print("\nSearching for output directories:\n\t{}".format(ingest_search))
     cmd = 'ls -d {}'.format(ingest_search)
     proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE)
@@ -150,7 +134,7 @@ def main():
     print("Found the following directories:\n\t{}".format(out_split))
     for element in out_split:
         if element[-2:] != '00':
-            search_dir = os.path.join("/data/archive", site, element, "*"+result_date+"*")
+            search_dir = os.path.join("/data/archive", site, element, "*" + result_date + "*")
             print('Searching for netcdf file:\n\t{}'.format(search_dir))
             ingested_file = glob(search_dir)[0]
             cmd = "ncdump -h {} | grep command".format(ingested_file)
@@ -160,9 +144,9 @@ def main():
             ingest_command = str(out).split('"')[1]
             if ingest_command:
                 print("Ingest command: {}\n".format(ingest_command))
-                break
+                return ingest_command
 
-    # copy input files to backup directory
+def backup_input_files(cwd, files):
     print("Coping files into .autotest dir...")
     autotest_dir = os.path.join(cwd, ".autotest")
     if not os.path.exists(autotest_dir):
@@ -176,7 +160,7 @@ def main():
             if not os.path.exists(dest):
                 shutil.copy(src, dest)
                 print("\tMoved: {}".format(src))
-            else: 
+            else:
                 print("\tExits: {}".format(dest))
             mod_files.append(dest)
         except shutil.SameFileError:
@@ -184,16 +168,14 @@ def main():
             pass
     print("Finished copying files.\n")
 
-    ### TODO This is where the loop for each column will occur ###
-    
-    # TODO This won't be necessary in the end when it auto compares the cdf files
-    # cleanup post processing of old ncreview files
+def cleanup_postproc(dqr):
+    _, post_processing, _ = reproc_env()
     print("Cleaning up old ncreview files")
     rm_path = os.path.join(post_processing, dqr, 'ncr*')
     os.system("rm -rvf {}".format(rm_path))
     print("Finished cleanup.\n")
-    
-    # run modification procedure
+
+def modify_files(args, files):
     print("Setting up to modify files... ", end="")
     # set header rows
     if args.header:
@@ -216,70 +198,137 @@ def main():
                     except IndexError:
                         pass
                     output_list.append(line)
-                else: output_list.append(line)
+                else:
+                    output_list.append(line)
         output_file = input_file.split("/")[-1]
         with open(output_file, 'w') as open_output_file:
             csv_writer = csv.writer(open_output_file)
             csv_writer.writerows(output_list)
     print("Finished modifying files.\n")
 
-    # run ingest 
+def ingest_files(files, site, datastream):
+    # get date from files to look for ingest command and for cdf comparison later
+    ingest_search_date = get_ingest_search_date(files)
+    # get ingest command
+    ingest_command = get_ingest_command(site, datastream, ingest_search_date)
     print("Running ingest command: <{}> ... ".format(ingest_command), end="")
     proc = subprocess.Popen(ingest_command, shell=True, stdout=subprocess.PIPE)
     out, err = proc.communicate()
     print("Finished running ingest.\n\tErrors: {}\n".format(err))
 
-    # setup for ncreview *** TODO setup for cdf comparison ***
+
+def ncreview_setup(dqr, site):
+    # get reprocessing environment variables
+    reproc_home, _, _ = reproc_env()
     print("Setting up for ncreveiw... ")
     ncr_cmd = "python3.6 /data/project/0021718_1509993009/ADC_Reproc_Toolbox/bin/ncr_cmd.py"
     output_dir = os.path.join(reproc_home, dqr, "datastream", site)
     cmd = "{}/{}".format(output_dir, "*")
     if DEBUG: print("\t" + cmd)
     output_dirs = glob(cmd)
-    if DEBUG: 
+    if DEBUG:
         for d in output_dirs:
             print("\t{}".format(d))
     print("Finished ncreview setup.\n")
+    return output_dirs, ncr_cmd
 
-    if not args.create_dict:
-        # run ncreveiw *** TODO evaluate cdf comparison ***
-        print("Running ncreveiw... ")
-        for output_dir in output_dirs:
-            if output_dir[-2:] != "00":
-                ds = output_dir.split("/")[-1]
-                os.chdir(output_dir)
-                proc = subprocess.Popen(ncr_cmd, shell=True, stdout=subprocess.PIPE)
-                out, err = proc.communicate()
-                print("\t{} Errors: {}".format(ds, err))
+def run_ncreview(output_dirs, ncr_cmd):
+    print("Running ncreveiw... ")
+    for output_dir in output_dirs:
+        if output_dir[-2:] != "00":
+            ds = output_dir.split("/")[-1]
+            os.chdir(output_dir)
+            proc = subprocess.Popen(ncr_cmd, shell=True, stdout=subprocess.PIPE)
+            out, err = proc.communicate()
+            print("\t{} Errors: {}".format(ds, err))
 
-                # print contents of log file to console *** TODO add results to json file ***
-                print("\tNcreview link: {}".format(link_regex.search(str(out)).group()))
-        print("Finished running ncreview.\n")
-    else:
-        # automatically create/append to the data dictionary
-        default_dict = {"header": {}, "data": {}, "coeff": {}}
-        dict_filename = instrument
-        dict_path = os.path.join(reproc_home, "working_data_dictionaries")
-        if not os.path.exists(dict_path):
-            os.makedirs(dict_path)
-        # TODO finishe this stuff.
-        # full auto dict generation will require a new workflow not exatly supported by the indifidual column modification
-        # think of making another module that creates the dict. 
-    
-    # cleanup datastream direcotry
+            # print contents of log file to console *** TODO add results to json file ***
+            print("\tNcreview link: {}".format(link_regex.search(str(out)).group()))
+    print("Finished running ncreview.\n")
+
+def cleanup_datastream(dqr, site):
+    # get reprocessing environment variables
+    reproc_home, _, _ = reproc_env()
     print("Cleaning datastream direcories... ")
     rm_path = os.path.join(reproc_home, dqr, "datastream", site)
     os.system("rm -rvf {}".format(rm_path))
     print("Finished cleanup.\n")
 
-    # restage raw files from backup directory
+def restage_files(input):
+    autotest_dir = os.path.join(input, ".autotest")
     print("Restaging files from autotest directory... ", end="")
     orig_files = os.listdir(autotest_dir)
     for f in orig_files:
         src = os.path.join(autotest_dir, f)
-        dest = os.path.join(cwd, f)
+        dest = os.path.join(input, f)
         shutil.move(src, dest)
     print("Done restaging files.\n")
+
+def data_dictionary():
+    # get reprocessing environment variables
+    reproc_home, post_processing, data_home = reproc_env()
+    # automatically create/append to the data dictionary
+    dict_path = os.path.join(reproc_home, "working_data_dictionaries")
+    # TODO finish this stuff.
+    """ 
+    full auto dict generation will require a new workflow not exactly supported by the individual column modification  
+    think of making another module that creates the dict. 
+    """
+
+def main():
+    args = parse_args()
+    # try and get arguments from path
+    dqr = dqr_regex.search(args.input).group()
+    datastream = datastream_regex.search(args.input).group()
+
+    if args.interactive:
+        # ask if arguments are correct?
+        question = "DQR # = {}\nRaw datastream = {}\nIs this correct? ".format(dqr, datastream)
+        if input(question) in ['y', 'yes', 'yea', 'ok']:
+            pass
+        # else ask for arguments
+        else:
+            dqr = input("Enter the DQR #:\nExample D180042.4: ")
+            datastream = input("Enter the datastream:\nExample sgp30ebbrC1.00: ")
+
+    site, instrument, facility = parse_datastream(datastream)
+    print(site, instrument, facility)
+    print("\tProceding with test.")
+
+    # set environment variables for reprocessing
+    setup_environment(dqr)
+
+    # get files to modify
+    files = get_files(os.path.join(args.input, '*'))
+
+    # copy input files to backup directory
+    backup_input_files(args.input, files)
+
+    ### TODO This is tentatively where the loop for each column will occur ###
+
+    # cleanup post processing of old ncreview files
+    cleanup_postproc()
+    
+    # run modification procedure
+    modify_files(args, files)
+
+    # run ingest 
+    ingest_files(files, site, datastream)
+
+    # setup for ncreview *** TODO setup for cdf comparison ***
+    output_dirs, ncr_cmd = ncreview_setup(dqr, site)
+
+    # run ncreveiw *** TODO evaluate cdf comparison ***
+    run_ncreview(output_dirs, ncr_cmd)
+
+    # make that sweet sweet data dictionary
+    # data_dictionary() # TODO This stuff
+    
+    # cleanup datastream direcotry
+    cleanup_datastream(dqr, site)
+
+    # restage raw files from backup directory
+    restage_files(args.input)
 
     # repeat
 
