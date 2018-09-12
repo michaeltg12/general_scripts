@@ -1,13 +1,14 @@
 #!/apps/base/python3/bin/python3
 
 import argparse
-import os, shutil
+import os
+import shutil
 import subprocess
-from glob import glob
-import numpy as np
-import netCDF4 as nc4
 import csv
 import re
+from glob import glob
+import numpy as np
+import netCDF4
 
 DEBUG = True
 
@@ -113,39 +114,6 @@ def setup_environment(dqr):
 def get_files(search_arg):
     return glob(search_arg)
 
-def get_ingest_search_date(files):
-    for f in files:
-        result_date = date_regex.search(f.split('/')[-1])
-        if result_date:
-            result_date = result_date.group()
-            return result_date
-    else:
-        print("No result date found. Exiting")
-        exit(1)
-
-def get_ingest_command(site, datastream, result_date):
-    ingest_search = os.path.join("/data/archive/", site, datastream[:-3] + "*")
-    print("\nSearching for output directories:\n\t{}".format(ingest_search))
-    cmd = 'ls -d {}'.format(ingest_search)
-    proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE)
-    out, err = proc.communicate()
-    out_2string_striped = str(out)[2:-3]
-    out_split = out_2string_striped.split('\\n')
-    print("Found the following directories:\n\t{}".format(out_split))
-    for element in out_split:
-        if element[-2:] != '00':
-            search_dir = os.path.join("/data/archive", site, element, "*" + result_date + "*")
-            print('Searching for netcdf file:\n\t{}'.format(search_dir))
-            ingested_file = glob(search_dir)[0]
-            cmd = "ncdump -h {} | grep command".format(ingested_file)
-            print(cmd)
-            proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE)
-            out, err = proc.communicate()
-            ingest_command = str(out).split('"')[1]
-            if ingest_command:
-                print("Ingest command: {}\n".format(ingest_command))
-                return ingest_command
-
 def backup_input_files(cwd, files):
     print("Coping files into .autotest dir...")
     autotest_dir = os.path.join(cwd, ".autotest")
@@ -207,6 +175,39 @@ def modify_files(args, files):
             csv_writer.writerows(output_list)
     print("Finished modifying files.\n")
 
+def get_ingest_search_date(files):
+    for f in files:
+        result_date = date_regex.search(f.split('/')[-1])
+        if result_date:
+            result_date = result_date.group()
+            return result_date
+    else:
+        print("No result date found. Exiting")
+        exit(1)
+
+def get_ingest_command(site, datastream, result_date):
+    ingest_search = os.path.join("/data/archive/", site, datastream[:-3] + "*")
+    print("\nSearching for output directories:\n\t{}".format(ingest_search))
+    cmd = 'ls -d {}'.format(ingest_search)
+    proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE)
+    out, err = proc.communicate()
+    out_2string_striped = str(out)[2:-3]
+    out_split = out_2string_striped.split('\\n')
+    print("Found the following directories:\n\t{}".format(out_split))
+    for element in out_split:
+        if element[-2:] != '00':
+            search_dir = os.path.join("/data/archive", site, element, "*" + result_date + "*")
+            print('Searching for netcdf file:\n\t{}'.format(search_dir))
+            ingested_file = glob(search_dir)[0]
+            cmd = "ncdump -h {} | grep command".format(ingested_file)
+            print(cmd)
+            proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE)
+            out, err = proc.communicate()
+            ingest_command = str(out).split('"')[1]
+            if ingest_command:
+                print("Ingest command: {}\n".format(ingest_command))
+                return ingest_command
+
 def ingest_files(files, site, datastream):
     # get date from files to look for ingest command and for cdf comparison later
     ingest_search_date = get_ingest_search_date(files)
@@ -233,8 +234,9 @@ def ncreview_setup(dqr, site):
     print("Finished ncreview setup.\n")
     return output_dirs, ncr_cmd
 
-def run_ncreview(output_dirs, ncr_cmd):
+def run_ncreview(dqr, site):
     print("Running ncreveiw... ")
+    output_dirs, ncr_cmd = ncreview_setup(dqr, site)
     for output_dir in output_dirs:
         if output_dir[-2:] != "00":
             ds = output_dir.split("/")[-1]
@@ -246,6 +248,18 @@ def run_ncreview(output_dirs, ncr_cmd):
             # print contents of log file to console *** TODO add results to json file ***
             print("\tNcreview link: {}".format(link_regex.search(str(out)).group()))
     print("Finished running ncreview.\n")
+
+def data_dictionary(dqr):
+    # get reprocessing environment variables
+    reproc_home, post_processing, data_home = reproc_env(dqr)
+    # automatically create/append to the data dictionary
+    dict_path = os.path.join(reproc_home, "working_data_dictionaries")
+    print(dict_path)
+    # TODO finish this stuff.
+    """
+    full auto dict generation will require a new workflow not exactly supported by the individual column modification
+    think of making another module that creates the dict.
+    """
 
 def cleanup_datastream(dqr, site):
     # get reprocessing environment variables
@@ -265,17 +279,6 @@ def restage_files(input_dir):
         shutil.move(src, dest)
     print("Done re-staging files.\n")
 
-def data_dictionary(dqr):
-    # get reprocessing environment variables
-    reproc_home, post_processing, data_home = reproc_env(dqr)
-    # automatically create/append to the data dictionary
-    dict_path = os.path.join(reproc_home, "working_data_dictionaries")
-    print(dict_path)
-    # TODO finish this stuff.
-    """
-    full auto dict generation will require a new workflow not exactly supported by the individual column modification
-    think of making another module that creates the dict.
-    """
 
 def main():
     args = parse_args()
@@ -317,11 +320,8 @@ def main():
     # run ingest
     ingest_files(files, site, datastream)
 
-    # setup for ncreview *** TODO setup for cdf comparison ***
-    output_dirs, ncr_cmd = ncreview_setup(dqr, site)
-
-    # run ncreveiw *** TODO evaluate cdf comparison ***
-    run_ncreview(output_dirs, ncr_cmd)
+    # run ncreveiw
+    run_ncreview(dqr, site)
 
     # make that sweet sweet data dictionary
     # data_dictionary(dqr) # TODO This stuff
