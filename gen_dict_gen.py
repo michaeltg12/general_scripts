@@ -68,7 +68,6 @@ def parse_datastream(datastream):
     facility = datastream[-2:]
     return site, instrument, facility
 
-<<<<<<< HEAD
 def reproc_env(dqr):
     reproc_home = os.getenv("REPROC_HOME")  # expected to be the current reproc environment
     post_processing = os.getenv("POST_PROC")  # is a post processing folder under reproc home
@@ -78,7 +77,7 @@ def reproc_env(dqr):
 def setup_environment(dqr):
     # get reprocessing environment variables
     reproc_home, post_processing, data_home = reproc_env(dqr)
-=======
+
 def main():
     args = parse_args()
     # try and get arguments from path
@@ -104,7 +103,6 @@ def main():
     reproc_home = os.getenv("REPROC_HOME") # expected to be the current reproc environment
     post_processing = os.getenv("POST_PROC") # is a post processing folder under reproc home
     data_home = f"{reproc_home}/{dqr}" # used to set environment variables for current dqr job 
->>>>>>> parent of 19ae176... modified the whole program to be more modular definition based. This will hopefully help me make unit tests and make it easier to change to automaticaly creat the data dictionary
 
     # try sourcing by apm created environment file in case it has more than the default
     env_file = os.path.join(reproc_home, dqr, 'env.bash')
@@ -196,15 +194,12 @@ def main():
             pass
     print("Finished copying files.\n")
 
-<<<<<<< HEAD
 def cleanup_postproc(dqr):
     _, post_processing, _ = reproc_env(dqr)
-=======
     ### TODO This is where the loop for each column will occur ###
     
     # TODO This won't be necessary in the end when it auto compares the cdf files
     # cleanup post processing of old ncreview files
->>>>>>> parent of 19ae176... modified the whole program to be more modular definition based. This will hopefully help me make unit tests and make it easier to change to automaticaly creat the data dictionary
     print("Cleaning up old ncreview files")
     rm_path = os.path.join(post_processing, dqr, 'ncr*')
     os.system("rm -rvf {}".format(rm_path))
