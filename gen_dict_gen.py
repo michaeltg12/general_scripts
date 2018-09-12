@@ -68,7 +68,7 @@ def parse_datastream(datastream):
     facility = datastream[-2:]
     return site, instrument, facility
 
-def reproc_env():
+def reproc_env(dqr):
     reproc_home = os.getenv("REPROC_HOME")  # expected to be the current reproc environment
     post_processing = os.getenv("POST_PROC")  # is a post processing folder under reproc home
     data_home = f"{reproc_home}/{dqr}"  # used to set environment variables for current dqr job
@@ -76,7 +76,7 @@ def reproc_env():
 
 def setup_environment(dqr):
     # get reprocessing environment variables
-    reproc_home, post_processing, data_home = reproc_env()
+    reproc_home, post_processing, data_home = reproc_env(dqr)
 
     # try sourcing by apm created environment file in case it has more than the default
     env_file = os.path.join(reproc_home, dqr, 'env.bash')
@@ -169,7 +169,7 @@ def backup_input_files(cwd, files):
     print("Finished copying files.\n")
 
 def cleanup_postproc(dqr):
-    _, post_processing, _ = reproc_env()
+    _, post_processing, _ = reproc_env(dqr)
     print("Cleaning up old ncreview files")
     rm_path = os.path.join(post_processing, dqr, 'ncr*')
     os.system("rm -rvf {}".format(rm_path))
@@ -182,8 +182,9 @@ def modify_files(args, files):
         rows_to_skip = [x for x in range(args.header)]
     else:
         rows_to_skip = []
-    # set columns to modify or default
-    columns_to_skip = args.skip_column
+    # set columns to modify or default for automatically doing the whole file
+    # columns_to_skip = args.skip_column
+
     print("Finished setup.\n")
 
     print("Modifying files... ", end="")
@@ -219,7 +220,7 @@ def ingest_files(files, site, datastream):
 
 def ncreview_setup(dqr, site):
     # get reprocessing environment variables
-    reproc_home, _, _ = reproc_env()
+    reproc_home, _, _ = reproc_env(dqr)
     print("Setting up for ncreveiw... ")
     ncr_cmd = "python3.6 /data/project/0021718_1509993009/ADC_Reproc_Toolbox/bin/ncr_cmd.py"
     output_dir = os.path.join(reproc_home, dqr, "datastream", site)
@@ -248,27 +249,28 @@ def run_ncreview(output_dirs, ncr_cmd):
 
 def cleanup_datastream(dqr, site):
     # get reprocessing environment variables
-    reproc_home, _, _ = reproc_env()
+    reproc_home, _, _ = reproc_env(dqr)
     print("Cleaning datastream direcories... ")
     rm_path = os.path.join(reproc_home, dqr, "datastream", site)
     os.system("rm -rvf {}".format(rm_path))
     print("Finished cleanup.\n")
 
-def restage_files(input):
-    autotest_dir = os.path.join(input, ".autotest")
+def restage_files(input_dir):
+    autotest_dir = os.path.join(input_dir, ".autotest")
     print("Restaging files from autotest directory... ", end="")
     orig_files = os.listdir(autotest_dir)
     for f in orig_files:
         src = os.path.join(autotest_dir, f)
-        dest = os.path.join(input, f)
+        dest = os.path.join(input_dir, f)
         shutil.move(src, dest)
-    print("Done restaging files.\n")
+    print("Done re-staging files.\n")
 
-def data_dictionary():
+def data_dictionary(dqr):
     # get reprocessing environment variables
-    reproc_home, post_processing, data_home = reproc_env()
+    reproc_home, post_processing, data_home = reproc_env(dqr)
     # automatically create/append to the data dictionary
     dict_path = os.path.join(reproc_home, "working_data_dictionaries")
+    print(dict_path)
     # TODO finish this stuff.
     """ 
     full auto dict generation will require a new workflow not exactly supported by the individual column modification  
@@ -307,7 +309,7 @@ def main():
     ### TODO This is tentatively where the loop for each column will occur ###
 
     # cleanup post processing of old ncreview files
-    cleanup_postproc()
+    cleanup_postproc(dqr)
     
     # run modification procedure
     modify_files(args, files)
@@ -322,7 +324,7 @@ def main():
     run_ncreview(output_dirs, ncr_cmd)
 
     # make that sweet sweet data dictionary
-    # data_dictionary() # TODO This stuff
+    # data_dictionary(dqr) # TODO This stuff
     
     # cleanup datastream direcotry
     cleanup_datastream(dqr, site)
