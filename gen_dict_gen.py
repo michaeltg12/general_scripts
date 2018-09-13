@@ -308,7 +308,7 @@ def main():
     # copy input files to backup directory
     backup_input_files(args.input, files)
 
-    ### TODO This is tentatively where the loop for each column will occur ###
+    ### TODO This might be where the loop for each column will occur ###
 
     # cleanup post processing of old ncreview files
     cleanup_postproc(dqr)
@@ -319,10 +319,10 @@ def main():
     # run ingest
     ingest_files(files, site, datastream)
 
-    # setup for ncreview *** TODO setup for cdf comparison ***
+    # setup for ncreview
     output_dirs, ncr_cmd = ncreview_setup(dqr, site)
 
-    # run ncreveiw *** TODO evaluate cdf comparison ***
+    # run ncreveiw
     run_ncreview(output_dirs, ncr_cmd)
 
     # make that sweet sweet data dictionary
