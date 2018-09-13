@@ -140,7 +140,7 @@ def get_files(search_arg: str) -> list:
     """Wraps glob for readability in workflow, returns file list.
 
     :param search_arg: regular expression for file search.
-    :return: list of files
+    :return: list of strings, full paths to original input files.
     """
     return glob(search_arg)
 
@@ -149,7 +149,7 @@ def backup_input_files(input_dir: str, files: list) -> None:
     This is necessary because the ingest will rename and move the input files automatically.
 
     :param input_dir: the directory of the original input files
-    :param files: full paths to original input files
+    :param files: list of strings, full paths to original input files.
     :return: None
     """
     print("Coping files into .autotest dir...")
@@ -179,7 +179,7 @@ def cleanup_postproc(dqr: str) -> None:
     If this is not done, the ncreview wrapper script will make a new comparison directory and
     append to the log file.
 
-    :param dqr: string representing the dqr number of this job.
+    :param dqr: list of strings, full paths to original input files.
     :return: None
     """
     _, post_processing, _ = reproc_env(dqr)
@@ -195,7 +195,7 @@ def modify_files(args: argparse.Namespace, files: list) -> None:
     files and determine which variable is in which column.
 
     :param args: an argparse.Namespace variable with command line arguments and defaults
-    :param files: a list of input files to modify.
+    :param files: list of strings, full paths to original input files.
     :return: None
     """
     print("Modifying files... ")
@@ -226,7 +226,7 @@ def get_ingest_search_date(files: list):
     The cdf file found will be used to ncdump the header and search
     for the command used to create it which is the ingest.
 
-    :param files: a list of input files.
+    :param files: list of strings, full paths to original input files.
     :return: a string representing the date in one of the input filenames.
     """
     for f in files:
@@ -269,11 +269,16 @@ def get_ingest_command(site: str, datastream: str, result_date: str) -> str:
                 print("Ingest command: {}\n".format(ingest_command))
                 return ingest_command
 
-def ingest_files(files, site, datastream):
-    """
+def ingest_files(files: list, site: str, datastream: str) -> None:
+    """Run the appropriate ingest to get the next level data from the one in the input directory
+    This method gets the date off one input file, uses it to search /data/archive for an output
+    file, uses ncdump and grep to get the command used to create that output file, then runs
+    that command on the files in the input directory. A specific input and output path are
+    required for ingest to run. This structure can be created automatically with ARM Reprocessing
+    Manager module.
 
-    :param files:
-    :param site:
+    :param files: list of strings, full paths to original input files.
+    :param site: ARM site that the datastream came from.
     :param datastream:
     :return:
     """
@@ -287,12 +292,14 @@ def ingest_files(files, site, datastream):
     print("Finished running ingest.\n\tErrors: {}\n".format(err))
 
 
-def ncreview_setup(dqr, site):
-    """
+def ncreview_setup(dqr: str, site: str) -> tuple:
+    """Construct the command to run the ncreview wrapper
+    The wrapper must be run in the output cdf directory, this method will return a list
+    of output cdf directories and the command to run the wrapper, both as elements of a tuple.
 
     :param dqr: string representing the dqr number of this job.
-    :param site:
-    :return:
+    :param site: ARM site that the datastream came from.
+    :return: tuple(list(str), str)
     """
     # get reprocessing environment variables
     reproc_home, _, _ = reproc_env(dqr)
@@ -308,12 +315,15 @@ def ncreview_setup(dqr, site):
     print("Finished ncreview setup.\n")
     return output_dirs, ncr_cmd
 
-def run_ncreview(dqr, site):
-    """
+def run_ncreview(dqr: str, site: str) -> None:
+    """Run the ncreview command in each of the output directories.
+    The ncreview command will not be run in 00 level data directories because those files
+    are not cdf files and ncreview would fail. Use a regex to search for the link to the
+    ncreview and print it to the console. 
 
     :param dqr: string representing the dqr number of this job.
-    :param site:
-    :return:
+    :param site: ARM site that the datastream came from.
+    :return: None
     """
     print("Running ncreveiw... ")
     output_dirs, ncr_cmd = ncreview_setup(dqr, site)
@@ -325,15 +335,15 @@ def run_ncreview(dqr, site):
             out, err = proc.communicate()
             print("\t{} Errors: {}".format(ds, err))
 
-            # print contents of log file to console *** TODO add results to json file ***
+            # print contents of log file to console
             print("\tNcreview link: {}".format(LINK_REGEX.search(str(out)).group()))
     print("Finished running ncreview.\n")
 
-def data_dictionary(dqr):
+def data_dictionary(dqr: str) -> dict:
     """
 
     :param dqr: string representing the dqr number of this job.
-    :return:
+    :return: dict or json of data raw to cdf data information
     """
     # get reprocessing environment variables
     reproc_home, post_processing, data_home = reproc_env(dqr)
@@ -346,12 +356,12 @@ def data_dictionary(dqr):
     the individual column modification. think of making another module that creates the dict.
     """
 
-def cleanup_datastream(dqr, site):
+def cleanup_datastream(dqr: str, site: str) -> None:
     """
 
     :param dqr: string representing the dqr number of this job.
-    :param site:
-    :return:
+    :param site: ARM site that the datastream came from.
+    :return: None
     """
     # get reprocessing environment variables
     reproc_home, _, _ = reproc_env(dqr)
@@ -360,11 +370,11 @@ def cleanup_datastream(dqr, site):
     os.system("rm -rvf {}".format(rm_path))
     print("Finished cleanup.\n")
 
-def restage_files(input_dir):
+def restage_files(input_dir: str) -> None:
     """
 
-    :param input_dir:
-    :return:
+    :param input_dir: the directory of the original input files
+    :return: None
     """
     autotest_dir = os.path.join(input_dir, ".autotest")
     print("Restaging files from autotest directory... ", end="")
@@ -405,7 +415,7 @@ def main():
     # copy input files to backup directory
     backup_input_files(args.input, files)
 
-    ### TODO This is tentatively where the loop for each column will occur ###
+    ###  This is tentatively where the loop for each column will occur ###
 
     # cleanup post processing of old ncreview files
     cleanup_postproc(dqr)
