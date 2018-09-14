@@ -362,7 +362,15 @@ def run_ncreview(dqr: str, site: str) -> None:
 
 
 def data_dictionary(dqr: str) -> dict:
-    """todo add description here
+    """Create dictionary from changes to cdf files
+    todo Finish dictionary workflow
+    --- this workflow will be more complicated than just one method. ---
+    - setup method to get original and modified cdf files
+    - scan files for changes, this work already done in "auto_var_data_dict.ipynb
+    - create/open dict and merge current changes
+    - add new element to dict
+    - copy old file to backup
+    - write output file
 
     :param dqr: string representing the dqr number of this job.
     :return: dict or json of data raw to cdf data information
@@ -372,12 +380,16 @@ def data_dictionary(dqr: str) -> dict:
     # automatically create/append to the data dictionary
     dict_path = os.path.join(reproc_home, "working_data_dictionaries")
     print(dict_path)
-    # TODO finish this stuff. full auto dict generation will require a new workflow not exactly supported by the individual column modification. think of making another module that creates the dict.
     return dict()
 
 
 def cleanup_datastream(dqr: str, site: str) -> None:
-    """todo add description here
+    """Cleanup the datastream directory
+    Remove all files and folders in the reproc home/dqr/datastream/site directory.
+    This is done to keep the folder clean for the next round of modifications in
+    case a new time range is staged and tested, otherwise there will be leftover
+    files that ncreview will try to compare. This stage can be skipped with the
+    --no-clean command line flag.
 
     :param dqr: string representing the dqr number of this job.
     :param site: ARM site that the datastream came from.
@@ -392,7 +404,10 @@ def cleanup_datastream(dqr: str, site: str) -> None:
 
 
 def restage_files(input_dir: str) -> None:
-    """todo add description here
+    """Move files from backup directory into collection/ingest directory
+    For the ingest to work it expects the input files to be in a specific
+    directory structure that can't be changed. We mimic this structure in
+    the reprocessing environment.
 
     :param input_dir: the directory of the original input files
     :return: None
@@ -408,9 +423,11 @@ def restage_files(input_dir: str) -> None:
 
 
 def main():
-    """todo add description here and finish docstring
+    """Main workflow
+    This should read like a high level overview of what is being done
+    with some minor management behaviors.
 
-    :return:
+    :return: None
     """
     args = parse_args()
     # try and get arguments from path
