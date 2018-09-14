@@ -59,7 +59,7 @@ def parse_args():
     parser.add_argument('--create-dict', dest='create_dict', action="store_true")
     parser.add_argument('--delimiter', dest='delimiter', default=',', help='File delimiter.')
     parser.add_argument('--header', dest='header', type=int, default=0,
-                        help='Number of header lines.')
+                        help='Number of header lines. Rows skipped when modifying columns')
     parser.add_argument('--skip-col', dest='skip_column', nargs='+', type=int, default=[],
                         help='Columns to skip. Must be last argument.')
     parser.add_argument('-I', '--Interactive', action='store_true', dest='interactive',
@@ -210,13 +210,13 @@ def modify_files(args: argparse.Namespace, files: list) -> None:
         with open(input_file) as open_input_file:
             csv_reader = csv.reader(open_input_file, delimiter=args.delimiter)
             for j, line in enumerate(csv_reader):
-                if j < args.header:
+                if j >= args.header:
                     try:
                         try:
                             num = int(line[args.modify])
                         except ValueError:
                             num = float(line[args.modify])
-                        line[args.modify] = num + 1
+                        line[args.modify] = num + 100
                     except IndexError:
                         pass
                     output_list.append(line)
