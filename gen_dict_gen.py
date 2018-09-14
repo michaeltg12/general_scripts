@@ -30,9 +30,9 @@ from glob import glob
 DEBUG = True
 
 DQR_REGEX = re.compile(r"D\d{6}(\.)*(\d)*")
-DATASTREAM_REGEX = re.compile("(acx|awr|dmf|fkb|gec|hfe|mag|mar|mlo|nic|nsa|osc|pgh|pye|sbs|shb"
-                              "|tmp|wbu|zrh|asi|cjc|ena|gan|grw|isp|mao|mcq|nac|nim|oli|osi|pvc"
-                              "|rld|sgp|smt|twp|yeu)\w+\.(\w){2}")
+DATASTREAM_REGEX = re.compile(r"(acx|awr|dmf|fkb|gec|hfe|mag|mar|mlo|nic|nsa|osc|pgh|pye|"
+                              r"sbs|shb|tmp|wbu|zrh|asi|cjc|ena|gan|grw|isp|mao|mcq|nac|"
+                              r"nim|oli|osi|pvc|rld|sgp|smt|twp|yeu)\w+\.(\w){2}")
 DATE_REGEX = re.compile(r"[1,2]\d{7}")
 LINK_REGEX = re.compile(r"https:([^\\]*)")
 
@@ -44,6 +44,8 @@ It must be run from the directory where the input raw files are.
 EXAMPLE = '''
 EXAMPLE: TODO
 '''
+
+
 def parse_args():
     """Return a Namespace with command line arguments and default values."""
 
@@ -87,6 +89,7 @@ def parse_args():
                         num += 1
     return args
 
+
 def parse_datastream(datastream: str) -> [str, str, str]:
     """Split a datastream into the site instrument and facility components.
 
@@ -97,6 +100,7 @@ def parse_datastream(datastream: str) -> [str, str, str]:
     instrument = datastream[3:-2]
     facility = datastream[-2:]
     return site, instrument, facility
+
 
 def reproc_env(dqr: str) -> [str, str, str]:
     """Get the environment varieables for this reprocessing job.
@@ -109,16 +113,17 @@ def reproc_env(dqr: str) -> [str, str, str]:
     data_home = f"{reproc_home}/{dqr}"  # used to set environment variables for current dqr job
     return reproc_home, post_processing, data_home
 
+
 def setup_environment(dqr: str) -> None:
     """Setup and source the environment variables for this reprocessing job.
 
     :param dqr: string representing the dqr number of this job.
     :return: None
     """
-    reproc_home, post_processing, data_home = reproc_env(dqr) # get reproc environment variables
+    _, _, data_home = reproc_env(dqr)  # get reproc environment variables
 
     # set environment variables based on this default dictionary
-    env_vars = {"DATA_HOME": data_home, # usually dqr folder under reproc env folder
+    env_vars = {"DATA_HOME": data_home,  # usually dqr folder under reproc env folder
                 "DATASTREAM_DATA": f"{data_home}/datastream",
                 "ARCHIVE_DATA": "/data/archive",
                 "OUT_DATA": f"{data_home}/out",
@@ -136,6 +141,7 @@ def setup_environment(dqr: str) -> None:
         print("\t{}={}".format(key, value))
         os.environ[key] = value
 
+
 def get_files(search_arg: str) -> list:
     """Wraps glob for readability in workflow, returns file list.
 
@@ -143,6 +149,7 @@ def get_files(search_arg: str) -> list:
     :return: list of strings, full paths to original input files.
     """
     return glob(search_arg)
+
 
 def backup_input_files(input_dir: str, files: list) -> None:
     """Moves files from input directory to a backup directory.
@@ -158,9 +165,9 @@ def backup_input_files(input_dir: str, files: list) -> None:
         os.makedirs(autotest_dir)
         print('Created directory: {}'.format(autotest_dir))
     mod_files = []
-    for f in files:
-        src = f
-        dest = os.path.join(autotest_dir, os.path.basename(f))
+    for file_name in files:
+        src = file_name
+        dest = os.path.join(autotest_dir, os.path.basename(file_name))
         try:
             if not os.path.exists(dest):
                 shutil.copy(src, dest)
@@ -170,7 +177,6 @@ def backup_input_files(input_dir: str, files: list) -> None:
             mod_files.append(dest)
         except shutil.SameFileError:
             print("\tExits: {}".format(dest))
-            pass
     print("Finished copying files.\n")
 
 
@@ -199,26 +205,30 @@ def modify_files(args: argparse.Namespace, files: list) -> None:
     :return: None
     """
     print("Modifying files... ")
-    for i, input_file in enumerate(files):
+    for input_file in files:
         output_list = []
         with open(input_file) as open_input_file:
             csv_reader = csv.reader(open_input_file, delimiter=args.delimiter)
             for j, line in enumerate(csv_reader):
                 if j < args.header:
                     try:
-                        line[args.modify] = eval(line[args.modify]) + 1000
+                        try:
+                            num = int(line[args.modify])
+                        except ValueError:
+                            num = float(line[args.modify])
+                        line[args.modify] = num + 1
                     except IndexError:
                         pass
                     output_list.append(line)
                 else:
                     output_list.append(line)
-        print("\tModified {} - {} lines --> ".format(input_file, j), end="")
         output_file = input_file.split("/")[-1]
         with open(output_file, 'w') as open_output_file:
             csv_writer = csv.writer(open_output_file)
             csv_writer.writerows(output_list)
         print("written to {}".format(output_file))
     print("Finished modifying files.\n")
+
 
 def get_ingest_search_date(files: list):
     """Get a date from one of the input files.
@@ -229,14 +239,14 @@ def get_ingest_search_date(files: list):
     :param files: list of strings, full paths to original input files.
     :return: a string representing the date in one of the input filenames.
     """
-    for f in files:
-        result_date = DATE_REGEX.search(f.split('/')[-1])
+    for file_name in files:
+        result_date = DATE_REGEX.search(file_name.split('/')[-1])
         if result_date:
             result_date = result_date.group()
             return result_date
-    else:
-        print("No result date found. Exiting")
-        exit(1)
+    print("No result date found. Exiting")
+    return None
+
 
 def get_ingest_command(site: str, datastream: str, result_date: str) -> str:
     """Get the command used to create one of the next level.
@@ -244,14 +254,14 @@ def get_ingest_command(site: str, datastream: str, result_date: str) -> str:
 
     :param site: ARM site that the datastream came from.
     :param datastream: name of the datasteram.
-    :param result_date: date to look formspecific file in next level data.
+    :param result_date: date to look form specific file in next level data.
     :return: the shell command used to create the next level data from the input data.
     """
     ingest_search = os.path.join("/data/archive/", site, datastream[:-3] + "*")
     print("Searching for output directories:\n\t{}".format(ingest_search))
     cmd = 'ls -d {}'.format(ingest_search)
     proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE)
-    out, err = proc.communicate()
+    out, _ = proc.communicate()
     out_2string_striped = str(out)[2:-3]
     out_split = out_2string_striped.split('\\n')
     print("Found the following directories:\n\t{}".format(out_split))
@@ -263,11 +273,13 @@ def get_ingest_command(site: str, datastream: str, result_date: str) -> str:
             cmd = "ncdump -h {} | grep command".format(ingested_file)
             print(cmd)
             proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE)
-            out, err = proc.communicate()
+            out, _ = proc.communicate()
             ingest_command = str(out).split('"')[1]
             if ingest_command:
                 print("Ingest command: {}\n".format(ingest_command))
                 return ingest_command
+    return ""
+
 
 def ingest_files(files: list, site: str, datastream: str) -> None:
     """Run the appropriate ingest to get the next level data from the one in the input directory
@@ -286,9 +298,14 @@ def ingest_files(files: list, site: str, datastream: str) -> None:
     ingest_search_date = get_ingest_search_date(files)
     # get ingest command
     ingest_command = get_ingest_command(site, datastream, ingest_search_date)
+    if ingest_search_date is None or ingest_command is None:
+        print("Error: not enough info to run ingest."
+              "\n\tingest_search_date = {}"
+              "\n\tingest_command = {}".format(ingest_search_date, ingest_command))
+        exit(1)
     print("Running ingest command: <{}> ... ".format(ingest_command), end="")
     proc = subprocess.Popen(ingest_command, shell=True, stdout=subprocess.PIPE)
-    out, err = proc.communicate()
+    _, err = proc.communicate()
     print("Finished running ingest.\n\tErrors: {}\n".format(err))
 
 
@@ -307,19 +324,21 @@ def ncreview_setup(dqr: str, site: str) -> tuple:
     ncr_cmd = "python3.6 /data/project/0021718_1509993009/ADC_Reproc_Toolbox/bin/ncr_cmd.py"
     output_dir = os.path.join(reproc_home, dqr, "datastream", site)
     cmd = "{}/{}".format(output_dir, "*")
-    if DEBUG: print("\t" + cmd)
+    if DEBUG:
+        print("\t" + cmd)
     output_dirs = glob(cmd)
     if DEBUG:
-        for d in output_dirs:
-            print("\t{}".format(d))
+        for output_dir in output_dirs:
+            print("\t{}".format(output_dir))
     print("Finished ncreview setup.\n")
     return output_dirs, ncr_cmd
+
 
 def run_ncreview(dqr: str, site: str) -> None:
     """Run the ncreview command in each of the output directories.
     The ncreview command will not be run in 00 level data directories because those files
     are not cdf files and ncreview would fail. Use a regex to search for the link to the
-    ncreview and print it to the console. 
+    ncreview and print it to the console.
 
     :param dqr: string representing the dqr number of this job.
     :param site: ARM site that the datastream came from.
@@ -329,35 +348,34 @@ def run_ncreview(dqr: str, site: str) -> None:
     output_dirs, ncr_cmd = ncreview_setup(dqr, site)
     for output_dir in output_dirs:
         if output_dir[-2:] != "00":
-            ds = output_dir.split("/")[-1]
+            output_datastream_folder = output_dir.split("/")[-1]
             os.chdir(output_dir)
             proc = subprocess.Popen(ncr_cmd, shell=True, stdout=subprocess.PIPE)
             out, err = proc.communicate()
-            print("\t{} Errors: {}".format(ds, err))
+            print("\t{} Errors: {}".format(output_datastream_folder, err))
 
             # print contents of log file to console
             print("\tNcreview link: {}".format(LINK_REGEX.search(str(out)).group()))
     print("Finished running ncreview.\n")
 
+
 def data_dictionary(dqr: str) -> dict:
-    """
+    """todo add description here
 
     :param dqr: string representing the dqr number of this job.
     :return: dict or json of data raw to cdf data information
     """
     # get reprocessing environment variables
-    reproc_home, post_processing, data_home = reproc_env(dqr)
+    reproc_home, _, _ = reproc_env(dqr)
     # automatically create/append to the data dictionary
     dict_path = os.path.join(reproc_home, "working_data_dictionaries")
     print(dict_path)
-    # TODO finish this stuff.
-    """
-    full auto dict generation will require a new workflow not exactly supported by
-    the individual column modification. think of making another module that creates the dict.
-    """
+    # TODO finish this stuff. full auto dict generation will require a new workflow not exactly supported by the individual column modification. think of making another module that creates the dict.
+    return dict()
+
 
 def cleanup_datastream(dqr: str, site: str) -> None:
-    """
+    """todo add description here
 
     :param dqr: string representing the dqr number of this job.
     :param site: ARM site that the datastream came from.
@@ -365,28 +383,33 @@ def cleanup_datastream(dqr: str, site: str) -> None:
     """
     # get reprocessing environment variables
     reproc_home, _, _ = reproc_env(dqr)
-    print("Cleaning datastream direcories... ")
+    print("Cleaning datastream directories... ")
     rm_path = os.path.join(reproc_home, dqr, "datastream", site)
     os.system("rm -rvf {}".format(rm_path))
     print("Finished cleanup.\n")
 
+
 def restage_files(input_dir: str) -> None:
-    """
+    """todo add description here
 
     :param input_dir: the directory of the original input files
     :return: None
     """
     autotest_dir = os.path.join(input_dir, ".autotest")
-    print("Restaging files from autotest directory... ", end="")
+    print("Re-staging files from autotest directory... ", end="")
     orig_files = os.listdir(autotest_dir)
-    for f in orig_files:
-        src = os.path.join(autotest_dir, f)
-        dest = os.path.join(input_dir, f)
+    for file_name in orig_files:
+        src = os.path.join(autotest_dir, file_name)
+        dest = os.path.join(input_dir, file_name)
         shutil.move(src, dest)
     print("Done re-staging files.\n")
 
 
 def main():
+    """todo add description here and finish docstring
+
+    :return:
+    """
     args = parse_args()
     # try and get arguments from path
     dqr = DQR_REGEX.search(args.input).group()
@@ -404,7 +427,7 @@ def main():
 
     site, instrument, facility = parse_datastream(datastream)
     print(site, instrument, facility)
-    print("\tProceding with test.")
+    print("\tPreceding with test.")
 
     # set environment variables for reprocessing
     setup_environment(dqr)
@@ -415,7 +438,7 @@ def main():
     # copy input files to backup directory
     backup_input_files(args.input, files)
 
-    ###  This is tentatively where the loop for each column will occur ###
+    # This is tentatively where the loop for each column will occur #
 
     # cleanup post processing of old ncreview files
     cleanup_postproc(dqr)
@@ -430,15 +453,16 @@ def main():
     run_ncreview(dqr, site)
 
     # make that sweet sweet data dictionary
-    # data_dictionary(dqr) # TODO This stuff
+    # data_dictionary(dqr) # TODO Finish this function
 
-    # cleanup datastream direcotry
+    # cleanup datastream directory
     cleanup_datastream(dqr, site)
 
-    # restage raw files from backup directory
+    # re-stage raw files from backup directory
     restage_files(args.input)
 
     # repeat
+
 
 if __name__ == "__main__":
     main()
