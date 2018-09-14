@@ -56,6 +56,8 @@ def parse_args():
                         help='input directory, ex. /data/archive/sgp/sgpmetE13.00')
     parser.add_argument('-m', '--modify', dest='modify', type=int,
                         help='Column to modify and test.')
+    parser.add_argument('--no-cleanup', dest="no_clean", action="store_true",
+                        help="when true, does not cleanup datastream directory.")
     parser.add_argument('--create-dict', dest='create_dict', action="store_true")
     parser.add_argument('--delimiter', dest='delimiter', default=',', help='File delimiter.')
     parser.add_argument('--header', dest='header', type=int, default=0,
