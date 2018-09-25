@@ -89,6 +89,7 @@ if not os.path.isdir(OUT_DIR):
 
 if ARGS.clean:
     print("Cleaning post processing directory - {}".format(OUT_DIR))
+    print("\tRemoving files/folders matching - ncr_{}*".format(DATASTREAM))
     RESULTS = glob("{}/ncr_{}*".format(OUT_DIR, DATASTREAM))
     for result in RESULTS:
         if os.path.isfile(result):
