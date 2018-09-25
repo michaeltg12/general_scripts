@@ -34,8 +34,8 @@ naming conventions. It assumes that the current directory is where the cdf files
 located and that the DQR number and datastream name are both in the current path. If the path
 does not contain this information it can be specified on the command line. The DQR number will
 be used to create a folder in the post processing directory and doens't have to be a valid DQR
-number, or a number at all. The datastream must be a valid datastream and is used to access
-files in the archive.
+number, or a number at all. Because of this option, a generic JOB_NAME can be specified. The 
+datastream must be a valid datastream and is used to access files in the archive.
 '''
 
 EXAMPLE = '''
@@ -57,8 +57,9 @@ PARSER.add_argument('-t', '--sample-interval', dest='sample_interval', type=str,
                     help='Time interval to average data over in HH-MM-SS. If not '
                          'provided, defaults to 1 day if more than 10 days are'
                          ' being processed, otherwise defaults to hourly samples.')
-PARSER.add_argument('--dqr', dest='DQR', type=str, default='',
-                    help='DQR number for archiving ncreview into post processing directory.')
+PARSER.add_argument('--job-name', dest='JOB_NAME', type=str, default='',
+                    help='Shold be a DQR number for archiving ncreview into post processing'
+                         'directory. Could be any job name but that will break conventions.')
 PARSER.add_argument('-ds', '--datastream', dest='DATASTREAM', default='',
                     help='The name of the directory that the cdf files are in, ex. sgpmetE13.b1')
 PARSER.add_argument('--cleanup', dest="clean", action="store_true",
@@ -66,17 +67,19 @@ PARSER.add_argument('--cleanup', dest="clean", action="store_true",
 
 ARGS = PARSER.parse_args()
 
-if ARGS.DQR and ARGS.DATASTREAM:
-    DQR = ARGS.DQR
+if ARGS.JOB_NAME:
+    JOB_NAME = ARGS.JOB_NAME
+else:
+    JOB_NAME = DQR_REGEX.search(ARGS.input).group()
+if ARGS.DATASTREAM:
     DATASTREAM = ARGS.DATASTREAM
 else:
-    DQR = DQR_REGEX.search(ARGS.input).group()
     DATASTREAM = DATASTREAM_REGEX.search(ARGS.input).group()
 SITE = DATASTREAM[:3]
 
 POST_PROC = os.environ['POST_PROC']
 
-OUT_DIR = "{}/{}".format(POST_PROC, DQR)
+OUT_DIR = "{}/{}".format(POST_PROC, JOB_NAME)
 NCR_DIR = "{}/ncr_{}".format(OUT_DIR, DATASTREAM)
 
 
@@ -95,7 +98,7 @@ if ARGS.clean:
         else:
             print("Skipping - {}".format(result))
 
-LOG = "{}/{}/ncr_{}.log".format(POST_PROC, DQR, DATASTREAM)
+LOG = "{}/{}/ncr_{}.log".format(POST_PROC, JOB_NAME, DATASTREAM)
 while os.path.isfile(LOG):
     try:
         NUM = int(LOG) + 1
