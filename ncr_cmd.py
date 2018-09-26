@@ -102,7 +102,7 @@ if ARGS.clean:
 LOG = "{}/{}/ncr_{}.log".format(POST_PROC, JOB_NAME, DATASTREAM)
 while os.path.isfile(LOG):
     try:
-        NUM = int(LOG) + 1
+        NUM = int(LOG[-1]) + 1
         LOG = "{}{}".format(LOG[:-1], NUM)
     except ValueError:
         LOG = "{}1".format(LOG)
