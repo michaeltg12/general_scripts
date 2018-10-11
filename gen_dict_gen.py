@@ -232,25 +232,7 @@ def modify_files(args: argparse.Namespace, files: list) -> None:
     print("Finished modifying files.\n")
 
 
-def get_ingest_search_date(files: list):
-    """Get a date from one of the input files.
-    This is used to search the next level of data for a cdf file.
-    The cdf file found will be used to ncdump the header and search
-    for the command used to create it which is the ingest.
-
-    :param files: list of strings, full paths to original input files.
-    :return: a string representing the date in one of the input filenames.
-    """
-    for file_name in files:
-        result_date = DATE_REGEX.search(file_name.split('/')[-1])
-        if result_date:
-            result_date = result_date.group()
-            return result_date
-    print("No result date found. Exiting")
-    return None
-
-
-def get_ingest_command(site: str, datastream: str, result_date: str) -> str:
+def get_ingest_command(site: str, datastream: str) -> str:
     """Get the command used to create one of the next level.
     This will be used to ingest the modified raw files.
 
@@ -269,9 +251,9 @@ def get_ingest_command(site: str, datastream: str, result_date: str) -> str:
     print("Found the following directories:\n\t{}".format(out_split))
     for element in out_split:
         if element[-2:] != '00':
-            search_dir = os.path.join("/data/archive", site, element, "*" + result_date + "*")
+            search_dir = os.path.join("/data/archive", site, element, "*")
             print('Searching for netcdf file:\n\t{}'.format(search_dir))
-            ingested_file = glob(search_dir)[0]
+            ingested_file = glob(search_dir)[-1]
             cmd = "ncdump -h {} | grep command".format(ingested_file)
             print(cmd)
             proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE)
@@ -283,7 +265,7 @@ def get_ingest_command(site: str, datastream: str, result_date: str) -> str:
     return ""
 
 
-def ingest_files(files: list, site: str, datastream: str) -> None:
+def ingest_files(site: str, datastream: str) -> None:
     """Run the appropriate ingest to get the next level data from the one in the input directory
     This method gets the date off one input file, uses it to search /data/archive for an output
     file, uses ncdump and grep to get the command used to create that output file, then runs
@@ -296,14 +278,11 @@ def ingest_files(files: list, site: str, datastream: str) -> None:
     :param datastream:
     :return:
     """
-    # get date from files to look for ingest command and for cdf comparison later
-    ingest_search_date = get_ingest_search_date(files)
     # get ingest command
-    ingest_command = get_ingest_command(site, datastream, ingest_search_date)
-    if ingest_search_date is None or ingest_command is None:
+    ingest_command = get_ingest_command(site, datastream)
+    if ingest_command is None:
         print("Error: not enough info to run ingest."
-              "\n\tingest_search_date = {}"
-              "\n\tingest_command = {}".format(ingest_search_date, ingest_command))
+              "\n\tingest_command = {}".format(ingest_command))
         exit(1)
     print("Running ingest command: <{}> ... ".format(ingest_command), end="")
     proc = subprocess.Popen(ingest_command, shell=True, stdout=subprocess.PIPE)
@@ -356,8 +335,12 @@ def run_ncreview(dqr: str, site: str) -> None:
             out, err = proc.communicate()
             print("\t{} Errors: {}".format(output_datastream_folder, err))
 
-            # print contents of log file to console
-            print("\tNcreview link: {}".format(LINK_REGEX.search(str(out)).group()))
+            result = LINK_REGEX.search(str(out))
+            if result:
+                # print contents of log file to console
+                print("\tNcreview link: {}".format(result.group()))
+            else:
+                print("\tNo ncreview link available.")
     print("Finished running ncreview.\n")
 
 
@@ -466,7 +449,7 @@ def main():
     modify_files(args, files)
 
     # run ingest
-    ingest_files(files, site, datastream)
+    ingest_files(site, datastream)
 
     # run ncreveiw
     run_ncreview(dqr, site)
