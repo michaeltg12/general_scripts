@@ -14,7 +14,7 @@ else:
     dqr = user_input
 
 archive_file_params = ['ncr_', 'conf', 'json', '.py', '.ipynb', 'log', '.sh', '.csh', '.bash', '.Ingest']
-archive_folder_params = ['ncr_', 'script']
+archive_folder_params = ['ncr_', 'script', 'conf']
 reproc_home = environ['REPROC_HOME']
 post_proc = environ['POST_PROC']
 
@@ -24,11 +24,12 @@ makedirs(archive_dir, exist_ok=True)
 
 for dirName, subdirList, fileList in walk(clean_dir):
     print('Found directory: {}'.format(dirName))
-    if any(param in dirName for param in archive_folder_params):
-        src = dirName
-        dest = path.join(archive_dir, dirName)
-        print("Archiving directory: {}".format(src))
-        copy_tree(src, dest)
+    for subdirName in subdirList:
+        if any(param in subdirName for param in archive_folder_params):
+            src = dirName
+            dest = path.join(archive_dir, dirName)
+            print("Archiving directory: {}".format(src))
+            copy_tree(src, dest)
     for fname in fileList:
         if any(param in fname for param in archive_file_params):
             src = path.join(dirName, fname)
