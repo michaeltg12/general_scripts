@@ -45,8 +45,10 @@ EXAMPLE: TODO
 PARSER = argparse.ArgumentParser(description=HELP_DESCRIPTION, epilog=EXAMPLE,
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-PARSER.add_argument('-i', '--input', dest='input', type=str, default=os.getcwd(),
+PARSER.add_argument('-i', '--input', dest='input', type=str, default=os.getcwd().strip(),
                     help='input directory, ex. /data/project/reproc/D123456.1/sgpmetE13.b1')
+PARSER.add_argument('-c', '--comp_dir', dest='comp_dir', type=str, default=None,
+                    help='Directory with files to ncreview compare output against.')
 PARSER.add_argument('-b', '--begin', dest='begin', type=int, default=0,
                     help='Ignore files before YYYYMMDD')
 PARSER.add_argument('-e', '--end', dest='end', type=int, default=0,
@@ -121,9 +123,13 @@ if ARGS.sample_interval:
     else:
         print("Sample interval needs to be of the form 12-23-34. Omiting this parameter")
 
+if ARGS.comp_dir != None:
+    comp_dir = ARGS.comp_dir
+else:
+    comp_dir = "/data/archive/{}/{}/".format(SITE, DATASTREAM)
 
-CMD = "ncreview /data/archive/{}/{}/ {} {} {} {}-n ncr_{} -w {} >> {}"\
-    .format(SITE, DATASTREAM, ARGS.input, ARGS.begin, ARGS.end,
+CMD = "ncreview {} {} {} {} {} -n ncr_{} -w {} >> {}"\
+    .format(comp_dir, ARGS.input, ARGS.begin, ARGS.end,
             ARGS.sample_interval, DATASTREAM, OUT_DIR, LOG)
 print("CMD = {}".format(CMD))
 
