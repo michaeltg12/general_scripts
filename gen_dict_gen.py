@@ -53,9 +53,13 @@ def parse_args():
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     parser.add_argument('-i', '--input', dest='input', type=str, default=os.getcwd(),
-                        help='input directory, ex. /data/archive/sgp/sgpmetE13.00')
-    parser.add_argument('-m', '--modify', dest='modify', type=int,
-                        help='Column to modify and test.')
+                        help='input directory, ex. /data/project/12345/D111042/collection/sgp/sgpmetE13.00')
+    parser.add_argument('-m', '--modify', dest='modify', type=int, default=0,
+                        help='Column to modify and test. Zero is the first column.')
+    parser.add_argument('-n', '--mod_num', dest="mod_num", type=float, default=100,
+                        help="Number to add to specified column.")
+    parser.add_argument('-c', '--comp_dir', dest='comp_dir', type=str, default=None,
+                        help='Directory with files to ncreview compare output against.')
     parser.add_argument('--no-cleanup', dest="no_clean", action="store_true",
                         help="when true, does not cleanup datastream directory.")
     parser.add_argument('--create-dict', dest='create_dict', action="store_true")
@@ -140,8 +144,8 @@ def setup_environment(dqr: str) -> None:
 
     print("\nSourcing from default dict:")
     for key, value in env_vars.items():
-        print("\t{}={}".format(key, value))
         os.environ[key] = value
+        print("\t{} = {}".format(key, os.environ[key]))
 
 
 def get_files(search_arg: str) -> list:
@@ -218,7 +222,7 @@ def modify_files(args: argparse.Namespace, files: list) -> None:
                             num = int(line[args.modify])
                         except ValueError:
                             num = float(line[args.modify])
-                        line[args.modify] = num + 100
+                        line[args.modify] = num + args.mod_num
                     except IndexError:
                         pass
                     output_list.append(line)
@@ -228,7 +232,7 @@ def modify_files(args: argparse.Namespace, files: list) -> None:
         with open(output_file, 'w') as open_output_file:
             csv_writer = csv.writer(open_output_file)
             csv_writer.writerows(output_list)
-        print("written to {}".format(output_file))
+        print("modified {}".format(output_file))
     print("Finished modifying files.\n")
 
 
@@ -290,7 +294,7 @@ def ingest_files(site: str, datastream: str) -> None:
     print("Finished running ingest.\n\tErrors: {}\n".format(err))
 
 
-def ncreview_setup(dqr: str, site: str) -> tuple:
+def ncreview_setup(dqr: str, site: str, comp_dir: str) -> tuple:
     """Construct the command to run the ncreview wrapper
     The wrapper must be run in the output cdf directory, this method will return a list
     of output cdf directories and the command to run the wrapper, both as elements of a tuple.
@@ -302,20 +306,24 @@ def ncreview_setup(dqr: str, site: str) -> tuple:
     # get reprocessing environment variables
     reproc_home, _, _ = reproc_env(dqr)
     print("Setting up for ncreveiw... ")
-    ncr_cmd = "python3.6 /data/project/0021718_1509993009/ADC_Reproc_Toolbox/bin/ncr_cmd.py"
+    if comp_dir != None:
+        ncr_cmd = "python3.6 /data/home/giansiracusa/reprocessing_scripts/ncr_cmd.py -c {}".format(comp_dir)
+    else:
+        ncr_cmd = "python3.6 /data/home/giansiracusa/reprocessing_scripts/ncr_cmd.py"
     output_dir = os.path.join(reproc_home, dqr, "datastream", site)
     cmd = "{}/{}".format(output_dir, "*")
     if DEBUG:
         print("\t" + cmd)
     output_dirs = glob(cmd)
     if DEBUG:
+        print("Output directories:")
         for output_dir in output_dirs:
             print("\t{}".format(output_dir))
     print("Finished ncreview setup.\n")
     return output_dirs, ncr_cmd
 
 
-def run_ncreview(dqr: str, site: str) -> None:
+def run_ncreview(dqr: str, site: str, comp_dir: str) -> None:
     """Run the ncreview command in each of the output directories.
     The ncreview command will not be run in 00 level data directories because those files
     are not cdf files and ncreview would fail. Use a regex to search for the link to the
@@ -326,10 +334,11 @@ def run_ncreview(dqr: str, site: str) -> None:
     :return: None
     """
     print("Running ncreveiw... ")
-    output_dirs, ncr_cmd = ncreview_setup(dqr, site)
+    output_dirs, ncr_cmd = ncreview_setup(dqr, site, comp_dir)
     for output_dir in output_dirs:
         if output_dir[-2:] != "00":
             output_datastream_folder = output_dir.split("/")[-1]
+            print(output_datastream_folder)
             os.chdir(output_dir)
             proc = subprocess.Popen(ncr_cmd, shell=True, stdout=subprocess.PIPE)
             out, err = proc.communicate()
@@ -452,13 +461,14 @@ def main():
     ingest_files(site, datastream)
 
     # run ncreveiw
-    run_ncreview(dqr, site)
+    run_ncreview(dqr, site, args.comp_dir)
 
     # make that sweet sweet data dictionary
     # data_dictionary(dqr) # TODO Finish this function
 
     # cleanup datastream directory
-    cleanup_datastream(dqr, site)
+    if not args.no_clean:
+        cleanup_datastream(dqr, site)
 
     # re-stage raw files from backup directory
     restage_files(args.input)
